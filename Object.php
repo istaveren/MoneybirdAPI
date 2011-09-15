@@ -1,34 +1,13 @@
 <?php
 
-/**
- * Interface for MoneybirdObject
- *
- */
-interface iMoneybirdObject
-{
-	/**
-	 * Fill with XML
-	 *
-	 * @access public
-	 * @param SimpleXMLElement $xml
-	 */
-	public function fromXML(SimpleXMLElement $xml);
-
-	/**
-	 * Convert to XML string
-	 *
-	 * @access public
-	 * @return string
-	 */
-	public function toXML();
-}
+namespace Moneybird;
 
 /**
  * Object in Moneybird
  *
  * @abstract
  */
-abstract class MoneybirdObject implements iMoneybirdObject
+abstract class Object implements ObjectInterface
 {
 	/**
 	 * Properties
@@ -75,7 +54,7 @@ abstract class MoneybirdObject implements iMoneybirdObject
 	 * @param SimpleXMLElement $xml XML to load
 	 * @param array $arrayHandlers Mapping for converting array elements to objects
 	 */
-	public function fromXML(SimpleXMLElement $xml, Array $arrayHandlers = null)
+	public function fromXML(\SimpleXMLElement $xml, Array $arrayHandlers = null)
 	{
 		foreach ($xml as $key => $value)
 		{
@@ -115,7 +94,7 @@ abstract class MoneybirdObject implements iMoneybirdObject
 			}
 			elseif ($type == 'datetime' || $type == 'date')
 			{
-				$this->properties[$key] = new DateTime(strval($value));
+				$this->properties[$key] = new \DateTime(strval($value));
 			}
 			else
 			{
@@ -137,15 +116,15 @@ abstract class MoneybirdObject implements iMoneybirdObject
 	 */
 	public function toXML(Array $arrayHandlers = null, $elmKeyOpen = null, $elmKeyClose = null, array $skipProperties = array())
 	{
-		if ($this instanceof iMoneybirdContact)
+		if ($this instanceof ContactInterface)
 		{
 			$root = 'contact';
 		}
-		elseif ($this instanceof iMoneybirdInvoice)
+		elseif ($this instanceof InvoiceInterface)
 		{
 			$root = 'invoice';
 		}
-		elseif ($this instanceof iMoneybirdRecurringTemplate)
+		elseif ($this instanceof RecurringTemplateInterface)
 		{
 			$root = 'recurringtemplate';
 		}
@@ -182,7 +161,7 @@ abstract class MoneybirdObject implements iMoneybirdObject
 			$keyOpen  = '<'.$key.'>';
 			$keyClose = '</'.$key.'>';
 
-			if (is_object($value) && $value instanceof DateTime)
+			if (is_object($value) && $value instanceof \DateTime)
 			{
 				$value = $value->format('c');
 			}

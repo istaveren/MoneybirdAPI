@@ -1,25 +1,12 @@
 <?php
 
-/**
- * Interface for MoneybirdCompany
- *
- */
-interface iMoneybirdCompany extends iMoneybirdObject
-{
-	/**
-	 * Set a reference to the Api
-	 *
-	 * @param MoneybirdApi $api
-	 * @access public
-	 */
-	public function setApi(MoneybirdApi $api);
-}
+namespace Moneybird;
 
 /**
  * Contact in Moneybird
  *
  */
-class MoneybirdCompany extends MoneybirdObject implements iMoneybirdCompany
+class Company extends Object implements CompanyInterface
 {
 	/**
 	 * Api object
@@ -35,7 +22,7 @@ class MoneybirdCompany extends MoneybirdObject implements iMoneybirdCompany
 	 * @param MoneybirdApi $api
 	 * @access public
 	 */
-	public function setApi(MoneybirdApi $api)
+	public function setApi(Api $api)
 	{
 		$this->api = $api;
 	}

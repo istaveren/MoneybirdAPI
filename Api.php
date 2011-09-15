@@ -1,5 +1,22 @@
 <?php
 
+namespace Moneybird;
+
+use Moneybird\Exception\InvalidCompanyNameException;
+use Moneybird\Exception\UnknownTypeException;
+use Moneybird\Exception\ConnectionErrorException;
+use Moneybird\Exception\AuthorizationRequiredException;
+use Moneybird\Exception\ForbiddenException;
+use Moneybird\Exception\ItemNotFoundException;
+use Moneybird\Exception\NotAcceptedException;
+use Moneybird\Exception\UnprocessableEntityException;
+use Moneybird\Exception\InternalServerErrorException;
+use Moneybird\Exception\UnknownResponseException;
+use Moneybird\Exception\InvalidIdException;
+use Moneybird\Exception\UnknownFilterException;
+use Moneybird\Invoice\SendInformation;
+use Moneybird\Invoice\Payment;
+
 /**
  * Communicates with Moneybird through REST API
  * http://www.moneybird.nl/
@@ -7,20 +24,14 @@
  * @todo Bij gebruik van api in invoice en contact object, controleren of object geldig is
  *
  * @author Sjors van der Pluijm <sjors@phpfreakz.nl>
+ * @author Ruud Kamphuis <ruud@1plus1media.nl> (namespace support)
  */
-
-require_once (dirname(__FILE__).'/Exceptions.php');
-require_once (dirname(__FILE__).'/Object.php');
-require_once (dirname(__FILE__).'/Contact.php');
-require_once (dirname(__FILE__).'/Invoice.php');
-require_once (dirname(__FILE__).'/RecurringTemplate.php');
-require_once (dirname(__FILE__).'/Company.php');
 
 /**
  * Communicates with Moneybird through REST API
  * Main class for sending request to Moneybird
  */
-class MoneybirdApi
+class Api
 {
 	/**
 	 * Version number of api
@@ -74,20 +85,22 @@ class MoneybirdApi
 	 * @param string $clientname first part of Moneybird URL (<clientname>.moneybird.nl)
 	 * @param string $username username for login
 	 * @param string $password password for login
+	 * @param bool $sslInsecure Don't verify SSL peer and host if true
 	 * @access public
 	 * @throws MoneybirdConnectionErrorException
 	 * @throws MoneybirdInvalidCompanyNameException
 	 */
-	public function __construct($clientname=null, $username=null, $password=null)
+	public function __construct($clientname=null, $username=null, $password=null, $sslInsecure=false)
 	{
 		// Set defaults
 		$this->clientname = $clientname != null ? $clientname : 'clientname';
 		$username	= $username != null ? $username : 'username';
 		$password = $password != null ? $password : 'password';
+		self::$sslInsecure = $sslInsecure;
 
 		if (preg_match('/^[a-z0-9_\-]+$/', $this->clientname) == 0)
 		{
-		  throw new MoneybirdInvalidCompanyNameException('Invalid companyname/clientname');
+		  throw new InvalidCompanyNameException('Invalid companyname/clientname');
 		}
 
 		$this->baseUrl = '';
@@ -113,19 +126,19 @@ class MoneybirdApi
 		{
 			case 'contact':
 			case 'invoice':
-				return array($type.'s', 'Moneybird'.ucfirst($type));
+				return array($type.'s', ucfirst($type));
 			break;
 
 			case 'recurringTemplate':
-				return array('recurring_templates', 'MoneybirdRecurringTemplate');
+				return array('recurring_templates', 'RecurringTemplate');
 			break;
 
 			case 'company':
-				return array('settings', 'MoneybirdCompany');
+				return array('settings', 'Company');
 			break;
 
 			default:
-				throw new MoneybirdUnknownTypeException('Unknown type: '.$type);
+				throw new UnknownTypeException('Unknown type: '.$type);
 			break;
 		}
 	}
@@ -140,7 +153,7 @@ class MoneybirdApi
 	{
 		if (!$this->connection = curl_init())
 		{
-			throw new MoneybirdConnectionErrorException('Unable to connect to Moneybird Api');
+			throw new ConnectionErrorException('Unable to connect to Moneybird Api');
 		}
 		else
 		{
@@ -165,7 +178,7 @@ class MoneybirdApi
 			$setopt = curl_setopt_array($this->connection, $options);
 			if (!$setopt)
 			{
-				throw new MoneybirdConnectionErrorException('Unable to set cURL options'.PHP_EOL.curl_error($this->connection));
+				throw new ConnectionErrorException('Unable to set cURL options'.PHP_EOL.curl_error($this->connection));
 			}
 		}
 	}
@@ -188,7 +201,7 @@ class MoneybirdApi
 	 * @throws MoneybirdConnectionErrorException
 	 * @throws MoneybirdXmlErrorException
 	 */
-	protected function request($url, $method='GET', iMoneybirdObject $mbObject=null, iMoneybirdObject $parent=null)
+	protected function request($url, $method='GET', ObjectInterface $mbObject=null, ObjectInterface $parent=null)
 	{
 		$url = '/'.$url;
 
@@ -198,7 +211,7 @@ class MoneybirdApi
 			$types = array('contact', 'invoice', 'recurringTemplate');
 			foreach ($types as $type)
 			{
-				$interface = 'iMoneybird'.ucfirst($type);
+				$interface = ucfirst($type) . 'Interface';
 				if (($parent instanceof $interface))
 				{
 					list($typegroup, $class) = $this->typeInfo($type);
@@ -253,27 +266,27 @@ class MoneybirdApi
 				$curlopts[CURLOPT_CUSTOMREQUEST] = 'DELETE';
 			break;
 		}
-
+		
 		$setopt = curl_setopt_array($this->connection, $curlopts);
 		if (!$setopt)
 		{
-			throw new MoneybirdConnectionErrorException('Unable to set cURL options'.PHP_EOL.curl_error($this->connection));
+			throw new ConnectionErrorException('Unable to set cURL options'.PHP_EOL.curl_error($this->connection));
 		}
 
 		$xmlstring = $this->curl_exec();
 		$xmlresponse = null;
 		if (false === $xmlstring)
 		{
-			throw new MoneybirdConnectionErrorException('Unable perform request: '.$url.PHP_EOL.curl_error($this->connection));
+			throw new ConnectionErrorException('Unable perform request: '.$url.PHP_EOL.curl_error($this->connection));
 		}
 		elseif (trim($xmlstring) != '')
 		{
 			try
 			{
 				libxml_use_internal_errors(true);
-				$xmlresponse = new SimpleXMLElement($xmlstring);
+				$xmlresponse = new \SimpleXMLElement($xmlstring);
 			}
-			catch (Exception $e)
+			catch (\Exception $e)
 			{
 				// Ignore
 			}
@@ -288,31 +301,31 @@ class MoneybirdApi
 			break;
 
 			case 401: // Authorization required	 No authorization information provided with request
-				$error = new MoneybirdAuthorizationRequiredException('No authorization information provided with request');
+				$error = new AuthorizationRequiredException('No authorization information provided with request');
 			break;
 
 			case 403: // Forbidden request
-				$error = new MoneybirdForbiddenException('Forbidden request');
+				$error = new ForbiddenException('Forbidden request');
 			break;
 
 			case 404: // The entity or action is not found in the API
-				$error = new MoneybirdItemNotFoundException('The entity or action is not found in the API');
+				$error = new ItemNotFoundException('The entity or action is not found in the API');
 			break;
 
 			case 406: // Not accepted			   The action you are trying to perform is not available in the API
-				$error = new MoneybirdNotAcceptedException('The action you are trying to perform is not available in the API');
+				$error = new NotAcceptedException('The action you are trying to perform is not available in the API');
 			break;
 
 			case 422: // Unprocessable entity	   Entity was not created because of errors in parameters. Errors are included in XML response.
-				$error = new MoneybirdUnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors are included in XML response.');
+				$error = new UnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors are included in XML response.');
 			break;
 
 			case 500: // Internal server error	  Something went wrong while processing the request. MoneyBird is notified of the error.
-				$error = new MoneybirdInternalServerErrorException('Something went wrong while processing the request. MoneyBird is notified of the error.');
+				$error = new InternalServerErrorException('Something went wrong while processing the request. MoneyBird is notified of the error.');
 			break;
 
 			default:
-				$error = new MoneybirdUnknownResponseException('Unknown response from Moneybird: '.$httpresponse);
+				$error = new UnknownResponseException('Unknown response from Moneybird: '.$httpresponse);
 			break;
 		}
 
@@ -329,8 +342,8 @@ class MoneybirdApi
 		if (isset($error))
 		{
 			if (
-						($error instanceof MoneybirdUnprocessableEntityException) ||
-						($error instanceof MoneybirdForbiddenException))
+						($error instanceof UnprocessableEntityException) ||
+						($error instanceof ForbiddenException))
 			{
 				$this->errors = array();
 				foreach ($xmlresponse as $message)
@@ -338,13 +351,13 @@ class MoneybirdApi
 					$this->errors[] = $message;
 				}
 
-				if ($error instanceof MoneybirdUnprocessableEntityException)
+				if ($error instanceof UnprocessableEntityException)
 				{
-					$error = new MoneybirdUnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
+					$error = new UnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
 				}
-				elseif ($error instanceof MoneybirdForbiddenException)
+				elseif ($error instanceof ForbiddenException)
 				{
-					$error = new MoneybirdForbiddenException('Got "forbidden" response upon request. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
+					$error = new ForbiddenException('Got "forbidden" response upon request. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
 				}
 			}
 			throw $error;
@@ -370,7 +383,7 @@ class MoneybirdApi
 		if ($curl_loops++ >= $curl_max_loops)
 		{
 			$curl_loops = 0;
-			throw new MoneybirdInternalServerErrorException('Too many redirects in request');
+			throw new InternalServerErrorException('Too many redirects in request');
 		}
 
 		$response = curl_exec($this->connection);
@@ -392,7 +405,7 @@ class MoneybirdApi
 			{
 				//couldn't process the url to redirect to
 				$curl_loops = 0;
-				throw new MoneybirdInternalServerErrorException('Invalid redirect');
+				throw new InternalServerErrorException('Invalid redirect');
 			}
 
 			$new_url = $url['scheme'] . '://' . $url['host'] . $url['path'] . (!empty($url['query'])?'?'.$url['query']:'');
@@ -415,8 +428,9 @@ class MoneybirdApi
 	 * @return iMoneybirdObject
 	 * @access protected
 	 */
-	protected function createMbObjectFromResponse($class, SimpleXMLElement $xml)
+	protected function createMbObjectFromResponse($class, \SimpleXMLElement $xml)
 	{
+		$class = "\\Moneybird\\" . $class;
 		$object = new $class;
 		$object->fromXML($xml);
 		$object->setApi($this);
@@ -438,7 +452,7 @@ class MoneybirdApi
 	{
 		if (!preg_match('/^[0-9]+$/D', $objectID))
 		{
-			throw new MoneybirdInvalidIdException('Invalid id: '.$objectID);
+			throw new InvalidIdException('Invalid id: '.$objectID);
 		}
 		list($typegroup, $class) = $this->typeInfo($type);
 
@@ -457,7 +471,7 @@ class MoneybirdApi
 	 * @access protected
 	 * @throws MoneybirdInvalidIdException
 	 */
-	protected function getMbObjects($type, $filter=null, iMoneybirdObject $parent = null)
+	protected function getMbObjects($type, $filter=null, ObjectInterface $parent = null)
 	{
 		list($typegroup, $class) = $this->typeInfo($type);
 
@@ -468,7 +482,7 @@ class MoneybirdApi
 			$isFilterObject = false;
 			if (is_object($filter))
 			{
-				$refclass = new ReflectionClass($filter);
+				$refclass = new \ReflectionClass($filter);
 				$isFilterObject = $refclass->isSubclassOf('iMoneybirdFilter');
 			}
 			if ($isFilterObject)
@@ -507,7 +521,7 @@ class MoneybirdApi
 	 * @param iMoneybirdObject $object object to save
 	 * @param string $type (contact|invoice|recurringTemplate)
 	 */
-	protected function saveMbObject(iMoneybirdObject $object, $type)
+	protected function saveMbObject(ObjectInterface $object, $type)
 	{
 		list($typegroup, $class) = $this->typeInfo($type);
 
@@ -543,7 +557,7 @@ class MoneybirdApi
 	 * @param iMoneybirdObject $object object to delete
 	 * @param string $type (contact|invoice|recurringTemplate)
 	 */
-	protected function deleteMbObject(iMoneybirdObject $object, $type)
+	protected function deleteMbObject(ObjectInterface $object, $type)
 	{
 		list($typegroup, $class) = $this->typeInfo($type);
 		$this->request($typegroup.'/'.$object->id, 'DELETE');
@@ -567,7 +581,7 @@ class MoneybirdApi
 	 * Get a contact by customer ID
 	 *
 	 * @param string $invoiceID
-	 * @return MoneyBirdContact
+	 * @return MoneybirdContact
 	 * @access public
 	 * @throws MoneybirdItemNotFoundException
 	 */
@@ -598,7 +612,7 @@ class MoneybirdApi
 	 * @param iMoneybirdContact $contact contact to save
 	 * @access public
 	 */
-	public function saveContact(iMoneybirdContact $contact)
+	public function saveContact(ContactInterface $contact)
 	{
 		return $this->saveMbObject($contact, 'contact');
 	}
@@ -609,7 +623,7 @@ class MoneybirdApi
 	 * @param iMoneybirdContact $contact contact to delete
 	 * @access public
 	 */
-	public function deleteContact(iMoneybirdContact $contact)
+	public function deleteContact(ContactInterface $contact)
 	{
 		$this->deleteMbObject($contact, 'contact');
 	}
@@ -637,7 +651,7 @@ class MoneybirdApi
 	 * @access public
 	 * @throws MoneybirdUnknownFilterException
 	 */
-	public function getInvoices($filter=null, iMoneybirdContact $contact = null)
+	public function getInvoices($filter=null, ContactInterface $contact = null)
 	{
 		$filters = array(
 			'all', 'this_month', 'last_month', 'this_quarter', 'last_quarter',
@@ -647,13 +661,13 @@ class MoneybirdApi
 		$isFilterObject = false;
 		if (is_object($filter))
 		{
-			$refclass = new ReflectionClass($filter);
+			$refclass = new \ReflectionClass($filter);
 			$isFilterObject = $refclass->isSubclassOf('iMoneybirdFilter');
 		}
 		if ($filter != null && !$isFilterObject &&
 			!in_array($filter, $filters))
 		{
-			throw new MoneybirdUnknownFilterException('Unknown filter for invoices: '.
+			throw new UnknownFilterException('Unknown filter for invoices: '.
 				$filter.'.'.PHP_EOL.'Available filters: '.implode(', ', $filters));
 		}
 
@@ -664,7 +678,7 @@ class MoneybirdApi
 	 * Get an invoice by invoice ID
 	 *
 	 * @param string $invoiceID
-	 * @return MoneyBirdInvoice
+	 * @return MoneybirdInvoice
 	 * @access public
 	 * @throws MoneybirdItemNotFoundException
 	 */
@@ -684,7 +698,7 @@ class MoneybirdApi
 	 * @param iMoneybirdInvoice $invoice invoice to save
 	 * @access public
 	 */
-	public function saveInvoice(iMoneybirdInvoice $invoice)
+	public function saveInvoice(InvoiceInterface $invoice)
 	{
 		return $this->saveMbObject($invoice, 'invoice');
 	}
@@ -695,7 +709,7 @@ class MoneybirdApi
 	 * @param iMoneybirdInvoice $invoice invoice to delete
 	 * @access public
 	 */
-	public function deleteInvoice(iMoneybirdInvoice $invoice)
+	public function deleteInvoice(InvoiceInterface $invoice)
 	{
 		$this->deleteMbObject($invoice, 'invoice');
 	}
@@ -721,7 +735,7 @@ class MoneybirdApi
 	 * @return array
 	 * @access public
 	 */
-	public function getRecurringTemplates(iMoneybirdContact $contact = null)
+	public function getRecurringTemplates(ContactInterface $contact = null)
 	{
 		return $this->getMbObjects('recurringTemplate', null, $contact);
 	}
@@ -733,7 +747,7 @@ class MoneybirdApi
 	 * @param iMoneybirdRecurringTemplate $template template to save
 	 * @access public
 	 */
-	public function saveRecurringTemplate(iMoneybirdRecurringTemplate $template)
+	public function saveRecurringTemplate(RecurringTemplateInterface $template)
 	{
 		return $this->saveMbObject($template, 'recurringTemplate');
 	}
@@ -744,7 +758,7 @@ class MoneybirdApi
 	 * @param iMoneybirdRecurringTemplate $template template to delete
 	 * @access public
 	 */
-	public function deleteRecurringTemplate(iMoneybirdRecurringTemplate $template)
+	public function deleteRecurringTemplate(RecurringTemplateInterface $template)
 	{
 		$this->deleteMbObject($template, 'recurringTemplate');
 	}
@@ -771,9 +785,9 @@ class MoneybirdApi
 	 * @access protected
 	 * @param iMoneybirdCompany $company company object to save
 	 */
-	public function saveSettings(iMoneybirdCompany $company)
+	public function saveSettings(CompanyInterface $company)
 	{
-		throw new MoneybirdException('Not yet implemented');
+		throw new Exception('Not yet implemented');
 		
 		list($typegroup, $class) = $this->typeInfo('company');
 
@@ -794,11 +808,11 @@ class MoneybirdApi
 	 * @param iMoneybirdInvoice $invoice invoice to send
 	 * @param MoneybirdInvoiceSendInformation $sendinfo optional information to send invoice
 	 */
-	public function sendInvoice(iMoneybirdInvoice $invoice, MoneybirdInvoiceSendInformation $sendinfo = null)
+	public function sendInvoice(InvoiceInterface $invoice, SendInformation $sendinfo = null)
 	{
 		if (is_null($sendinfo))
 		{
-			$sendinfo = new MoneybirdInvoiceSendInformation;
+			$sendinfo = new SendInformation;
 		}
 
 		if (intval($invoice->id) == 0)
@@ -822,9 +836,9 @@ class MoneybirdApi
 	 * @access public
 	 * @param iMoneybirdInvoice $invoice subjected invoice
 	 */
-	public function markInvoiceAsSent(iMoneybirdInvoice $invoice)
+	public function markInvoiceAsSent(InvoiceInterface $invoice)
 	{
-		$this->sendInvoice($invoice, new MoneybirdInvoiceSendInformation('hand'));
+		$this->sendInvoice($invoice, new SendInformation('hand'));
 	}
 
 	/**
@@ -834,11 +848,11 @@ class MoneybirdApi
 	 * @param iMoneybirdInvoice $invoice invoice to send reminder of
 	 * @param MoneybirdInvoiceSendInformation $sendinfo optional information to send reminder
 	 */
-	public function sendInvoiceReminder(iMoneybirdInvoice $invoice, MoneybirdInvoiceSendInformation $sendinfo = null)
+	public function sendInvoiceReminder(InvoiceInterface $invoice, SendInformation $sendinfo = null)
 	{
 		if (is_null($sendinfo))
 		{
-			$sendinfo = new MoneybirdInvoiceSendInformation;
+			$sendinfo = new SendInformation;
 		}
 
 		$sendinfo->invoice_id = $invoice->id;
@@ -858,7 +872,7 @@ class MoneybirdApi
 	 * @param iMoneybirdInvoice $invoice invoice to register payment for
 	 * @param MoneybirdInvoicePayment $payment payment to register
 	 */
-	public function registerInvoicePayment(iMoneybirdInvoice $invoice, MoneybirdInvoicePayment $payment)
+	public function registerInvoicePayment(InvoiceInterface $invoice, Payment $payment)
 	{
 		if (intval($invoice->id) == 0)
 		{
@@ -882,7 +896,7 @@ class MoneybirdApi
 	 * @param iMoneybirdInvoice $invoice invoice to register payment for
 	 * @return string
 	 */
-	public function getInvoicePdf(iMoneybirdInvoice $invoice)
+	public function getInvoicePdf(InvoiceInterface $invoice)
 	{
 		$curlopts = array(
 			CURLOPT_URL            => 'https://'.$this->clientname.'.moneybird.nl/invoices/'.$invoice->id.'.pdf',
@@ -894,7 +908,7 @@ class MoneybirdApi
 		$setopt = curl_setopt_array($this->connection, $curlopts);
 		if (!$setopt)
 		{
-			throw new MoneybirdConnectionErrorException('Unable to set cURL options'.PHP_EOL.curl_error($this->connection));
+			throw new ConnectionErrorException('Unable to set cURL options'.PHP_EOL.curl_error($this->connection));
 		}
 
 		$response = $this->curl_exec();
@@ -908,31 +922,31 @@ class MoneybirdApi
 			break;
 
 			case 401: // Authorization required	 No authorization information provided with request
-				$error = new MoneybirdAuthorizationRequiredException('No authorization information provided with request');
+				$error = new dAuthorizationRequiredException('No authorization information provided with request');
 			break;
 
 			case 403: // Forbidden request
-				$error = new MoneybirdForbiddenException('Forbidden request');
+				$error = new ForbiddenException('Forbidden request');
 			break;
 
 			case 404: // The entity or action is not found in the API
-				$error = new MoneybirdItemNotFoundException('The entity or action is not found in the API');
+				$error = new ItemNotFoundException('The entity or action is not found in the API');
 			break;
 
 			case 406: // Not accepted			   The action you are trying to perform is not available in the API
-				$error = new MoneybirdNotAcceptedException('The action you are trying to perform is not available in the API');
+				$error = new NotAcceptedException('The action you are trying to perform is not available in the API');
 			break;
 
 			case 422: // Unprocessable entity	   Entity was not created because of errors in parameters. Errors are included in XML response.
-				$error = new MoneybirdUnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors are included in XML response.');
+				$error = new UnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors are included in XML response.');
 			break;
 
 			case 500: // Internal server error	  Something went wrong while processing the request. MoneyBird is notified of the error.
-				$error = new MoneybirdInternalServerErrorException('Something went wrong while processing the request. MoneyBird is notified of the error.');
+				$error = new InternalServerErrorException('Something went wrong while processing the request. MoneyBird is notified of the error.');
 			break;
 
 			default:
-				$error = new MoneybirdUnknownResponseException('Unknown response from Moneybird: '.$httpresponse);
+				$error = new UnknownResponseException('Unknown response from Moneybird: '.$httpresponse);
 			break;
 		}
 
@@ -949,8 +963,8 @@ class MoneybirdApi
 		if (isset($error))
 		{
 			if (
-						($error instanceof MoneybirdUnprocessableEntityException) ||
-						($error instanceof MoneybirdForbiddenException))
+						($error instanceof UnprocessableEntityException) ||
+						($error instanceof ForbiddenException))
 			{
 				$this->errors = array();
 				foreach ($xmlresponse as $message)
@@ -958,13 +972,13 @@ class MoneybirdApi
 					$this->errors[] = $message;
 				}
 
-				if ($error instanceof MoneybirdUnprocessableEntityException)
+				if ($error instanceof UnprocessableEntityException)
 				{
-					$error = new MoneybirdUnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
+					$error = new UnprocessableEntityException('Entity was not created or deleted because of errors in parameters. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
 				}
-				elseif ($error instanceof MoneybirdForbiddenException)
+				elseif ($error instanceof ForbiddenException)
 				{
-					$error = new MoneybirdForbiddenException('Got "forbidden" response upon request. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
+					$error = new ForbiddenException('Got "forbidden" response upon request. Errors:'.PHP_EOL.implode(PHP_EOL, $this->errors));
 				}
 			}
 			throw $error;
@@ -989,7 +1003,7 @@ class MoneybirdApi
 	{
 		if (!isset($_POST['invoice_id'], $_POST['state']))
 		{
-			throw new MoneybirdInvalidRequestException('Required fields not found');
+			throw new InvalidRequestException('Required fields not found');
 		}
 		return $this->getInvoice($_POST['invoice_id']);
 	}
@@ -1011,11 +1025,11 @@ class MoneybirdApi
 	 * @param DateTime $now
 	 * @param iMoneybirdContact $contact If passed, only invoices of contact will be reminded
 	 */
-	public function getRemindableInvoices(array $documentDays, DateTime $now = null, iMoneybirdContact $contact = null)
+	public function getRemindableInvoices(array $documentDays, \DateTime $now = null, ContactInterface $contact = null)
 	{
 		if (is_null($now))
 		{
-			$now = new DateTime();
+			$now = new \DateTime();
 		}
 
 		$invoices = array();

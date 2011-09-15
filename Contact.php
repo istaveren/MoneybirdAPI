@@ -1,41 +1,14 @@
 <?php
 
-/**
- * Interface for MoneybirdContact
- *
- */
-interface iMoneybirdContact extends iMoneybirdObject
-{
-	/**
-	 * Set a reference to the Api
-	 *
-	 * @param MoneybirdApi $api
-	 * @access public
-	 */
-	public function setApi(MoneybirdApi $api);
+namespace Moneybird;
 
-	/**
-	 * Set all properties
-	 *
-	 * @param array $data
-	 * @access public
-	 */
-	public function setProperties(array $data);
-
-	/**
-	 * Get all properties
-	 *
-	 * @return array
-	 * @access public
-	 */
-	public function getProperties();
-}
+use Moneybird\Exception\ItemNotFoundException;
 
 /**
  * Contact in Moneybird
  *
  */
-class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
+class Contact extends Object implements ContactInterface
 {
 	/**
 	 * Api object
@@ -51,7 +24,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 	 * @param MoneybirdApi $api
 	 * @access public
 	 */
-	public function setApi(MoneybirdApi $api)
+	public function setApi(Api $api)
 	{
 		$this->api = $api;
 	}
@@ -114,7 +87,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 		$invoice = $this->api->getInvoice($invoiceID);
 		if ($invoice->contact_id != $this->id)
 		{
-			throw new MoneybirdItemNotFoundException('The entity or action is not found in the API');
+			throw new ItemNotFoundException('The entity or action is not found in the API');
 		}
 		return $invoice;
 	}
@@ -123,7 +96,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 	 * Get an invoice by invoice ID
 	 *
 	 * @param string $invoiceID
-	 * @return MoneyBirdInvoice
+	 * @return MoneybirdInvoice
 	 * @access public
 	 * @throws MoneybirdItemNotFoundException
 	 */
@@ -132,7 +105,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 		$invoice = $this->api->getInvoiceByInvoiceId($invoiceID);
 		if ($invoice->contact_id != $this->id)
 		{
-			throw new MoneybirdItemNotFoundException('The entity or action is not found in the API');
+			throw new ItemNotFoundException('The entity or action is not found in the API');
 		}
 		return $invoice;
 	}
@@ -172,7 +145,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 	 * @param iMoneybirdInvoice $invoice invoice to save
 	 * @access public
 	 */
-	public function saveInvoice(iMoneybirdInvoice $invoice)
+	public function saveInvoice(InvoiceInterface $invoice)
 	{
 		if (intval($invoice->contact_id) == 0)
 		{
@@ -199,7 +172,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 	 * @param iMoneybirdRecurringTemplate $template template to save
 	 * @access public
 	 */
-	public function saveRecurringTemplate(iMoneybirdRecurringTemplate $template)
+	public function saveRecurringTemplate(RecurringTemplateInterface $template)
 	{
 		if (intval($template->contact_id) == 0)
 		{
@@ -245,7 +218,7 @@ class MoneybirdContact extends MoneybirdObject implements iMoneybirdContact
 	 * @param array $documentDays Associative array with document titles as keys and days since last document as value
 	 * @param DateTime $now
 	 */
-	public function getRemindableInvoices(array $documentDays, DateTime $now = null)
+	public function getRemindableInvoices(array $documentDays, \DateTime $now = null)
 	{
 		return $this->api->getRemindableInvoices($documentDays, $now, $this);
 	}

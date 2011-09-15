@@ -1,39 +1,12 @@
 <?php
 
-/**
- * Interface for MoneybirdRecurringTemplate
- *
- */
-interface iMoneybirdRecurringTemplate extends iMoneybirdObject
-{
-	/**
-	 * Set a reference to the Api
-	 *
-	 * @param MoneybirdApi $api
-	 * @access public
-	 */
-	public function setApi(MoneybirdApi $api);
-}
-
-/**
- * Interface for MoneybirdRecurringTemplateDetail
- *
- */
-interface iMoneybirdRecurringTemplateDetail extends iMoneybirdObject
-{
-	/**
-	 * Mark line for deletion
-	 *
-	 * @access public
-	 */
-	public function delete();
-}
+namespace Moneybird;
 
 /**
  * RecurringTemplate in Moneybird
  *
  */
-class MoneybirdRecurringTemplate extends MoneybirdObject implements iMoneybirdRecurringTemplate
+class RecurringTemplate extends Object implements RecurringTemplateInterface
 {
 	/**
 	 * Send frequency
@@ -77,7 +50,7 @@ class MoneybirdRecurringTemplate extends MoneybirdObject implements iMoneybirdRe
 	 * @param MoneybirdApi $api
 	 * @access public
 	 */
-	public function setApi(MoneybirdApi $api)
+	public function setApi(Api $api)
 	{
 		$this->api = $api;
 	}
@@ -88,7 +61,7 @@ class MoneybirdRecurringTemplate extends MoneybirdObject implements iMoneybirdRe
 	 * @access public
 	 * @param SimpleXMLElement $xml
 	 */
-	public function fromXML(SimpleXMLElement $xml)
+	public function fromXML(\SimpleXMLElement $xml)
 	{
 		parent::fromXML($xml, array(
 			'details'  => 'MoneybirdRecurringTemplateLine',
@@ -131,67 +104,5 @@ class MoneybirdRecurringTemplate extends MoneybirdObject implements iMoneybirdRe
 	public function delete()
 	{
 		$this->api->deleteRecurringTemplate($this);
-	}
-}
-
-/**
- * RecurringTemplateLine in Moneybird
- *
- */
-class MoneybirdRecurringTemplateLine extends MoneybirdObject implements iMoneybirdRecurringTemplateDetail
-{
-	/**
-	 * Line is marked for deletion
-	 * @var bool
-	 */
-	protected $deleted = false;
-
-	/**
-	 * Load object from XML
-	 *
-	 * @access public
-	 * @param SimpleXMLElement $xml
-	 */
-	public function fromXML(SimpleXMLElement $xml)
-	{
-		parent::fromXML($xml);
-		$this->amount = $this->amount_plain;
-	}
-
-	/**
-	 * Convert to XML string
-	 *
-	 * @access public
-	 * @return string
-	 */
-	public function toXML()
-	{
-		$keyOpen  = '<detail type="RecurringTemplateDetail"';
-		if ($this->deleted)
-		{
-			$keyOpen .= ' _destroy="1"';
-		}
-		$keyOpen .= '>';
-
-		return parent::toXML(
-			null,
-			$keyOpen,
-			'</detail>',
-			array(
-				'total_price_excl_tax',
-				'total_price_incl_tax',
-				'amount_plain',
-			)
-		);
-	}
-
-	/**
-	 * Mark line for deletion
-	 *
-	 * @access public
-	 */
-	public function delete()
-	{
-		$this->deleted = true;
 	}
 }
