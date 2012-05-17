@@ -105,10 +105,11 @@ class Invoice extends Object implements InvoiceInterface
 	 *
 	 * @access public
 	 * @param MoneybirdInvoiceSendInformation optional $sendinfo information to send invoice
+	 * @return Invoice
 	 */
 	public function send(SendInformation $sendinfo = null)
 	{
-		$this->api->sendInvoice($this, $sendinfo);
+		return $this->api->sendInvoice($this, $sendinfo);
 	}
 
 	/**

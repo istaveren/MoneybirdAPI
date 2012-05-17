@@ -807,6 +807,7 @@ class Api
 	 * @access public
 	 * @param iMoneybirdInvoice $invoice invoice to send
 	 * @param MoneybirdInvoiceSendInformation $sendinfo optional information to send invoice
+	 * @return Invoice the udpated invoice details
 	 */
 	public function sendInvoice(InvoiceInterface $invoice, SendInformation $sendinfo = null)
 	{
@@ -823,11 +824,12 @@ class Api
 		$sendinfo->invoice_id = $invoice->id;
 
 		// Send
-		$this->request(
+		return $this->createMbObjectFromResponse('Invoice', 
+		    $this->request(
 			'invoices/'.$invoice->id.'/send_invoice',
 			'PUT',
 			$sendinfo
-		);
+		   ));
 	}
 
 	/**
