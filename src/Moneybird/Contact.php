@@ -12,6 +12,8 @@ class Contact extends Object implements ContactInterface
 {
     /**
      * Get all valid properties for contact
+     * 
+     * @see http://www.moneybird.nl/api/contact
      * @return array
      */
     public function getValidProperties()
