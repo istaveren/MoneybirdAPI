@@ -10,6 +10,19 @@ use Moneybird\Exception\ItemNotFoundException;
  */
 class Contact extends Object implements ContactInterface
 {
+    /**
+     * Get all valid properties for contact
+     * @return array
+     */
+    public function getValidProperties()
+    {
+      return array(
+        'company_name', 'firstname', 'lastname', 'attention', 'address1', 'address2', 
+        'zipcode', 'city', 'country', 'customer_id', 'email', 'created_at', 'tax_number',
+        'updated_at',
+      );
+    }
+    
 	/**
 	 * Api object
 	 *
@@ -38,10 +51,7 @@ class Contact extends Object implements ContactInterface
 	 */
 	public function setProperties(array $data)
 	{
-		$properties = array(
-			'company_name', 'firstname', 'lastname', 'attention', 'address1', 'address2', 
-			'zipcode', 'city', 'country', 'customer_id', 'email',
-		);
+		$properties = $this->getValidProperties();
 
 		foreach ($properties as $property)
 		{
@@ -59,10 +69,7 @@ class Contact extends Object implements ContactInterface
 	 */
 	public function getProperties()
 	{
-		$properties = array(
-			'company_name', 'firstname', 'lastname', 'attention', 'address1', 'address2', 
-			'zipcode', 'city', 'country', 'customer_id', 'email',
-		);
+		$properties = $this->getValidProperties();
 
 		$return = array();
 		foreach ($properties as $property)
