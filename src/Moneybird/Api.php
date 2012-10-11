@@ -334,7 +334,8 @@ class Api
 			'url'		        => $curlopts[CURLOPT_URL],
 			'method'		    => $method,
 			'http-response' => $httpresponse,
-			'xml-send'	    => isset($xml)?$xml:''
+			'xml-send'	    => isset($xml)?$xml:'',
+		    'xml-response'  => $xmlstring,
 		);
 
 		// If $error exists, an exception needs to be thrown
@@ -957,7 +958,8 @@ class Api
 			'url'		        => $curlopts[CURLOPT_URL],
 			'method'		    => 'GET',
 			'http-response' => $httpresponse,
-			'xml-send'	    => ''
+			'xml-send'	    => '',
+		    'xml-response'  => $response,
 		);
 
 		// If $error exists, an exception needs to be thrown
@@ -1098,12 +1100,24 @@ class Api
 	public function debug()
 	{
 		echo '====== DEBUG ======'.PHP_EOL;
-		if (is_array($this->lastRequest))
-		{
-			foreach ($this->lastRequest as $key => $value)
-			{
-				echo $key.': '.$value.PHP_EOL;
-			}
-		}
+		echo $this->getLastRequest();
+	}
+	
+	/**
+	 * 
+	 * @return string
+	 */
+	public function getLastRequestAsString()
+	{
+	  $return = '';
+	  if (is_array($this->lastRequest))
+	  {
+	    foreach ($this->lastRequest as $key => $value)
+	    {
+	      $return .= $key.': '.$value.PHP_EOL;
+	    }
+	  }
+	  
+	  return $return;
 	}
 }
